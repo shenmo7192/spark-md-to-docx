@@ -7,7 +7,9 @@
     "start": "electron .",
     "pack": "electron-builder --dir",
     "dist:win": "electron-builder --win --x64",
-    "dist:win32": "electron-builder --win --ia32"
+    "dist:win32": "electron-builder --win --ia32",
+    "dist:linux": "electron-builder --linux",
+    "dist:all": "electron-builder --win --linux"
   },
   "build": {
     "appId": "com.gongwen.typesetting",
@@ -19,13 +21,24 @@
       "target": [
         {
           "target": "nsis",
-          "arch": [
-            "x64",
-            "ia32"
-          ]
+          "arch": ["x64", "ia32"]
         }
       ],
-      "icon": null
+      "icon": "build/icons/icon.ico"
+    },
+    "linux": {
+      "target": [
+        {
+          "target": "AppImage",
+          "arch": ["x64"]
+        },
+        {
+          "target": "deb",
+          "arch": ["x64"]
+        }
+      ],
+      "icon": "build/icons",
+      "category": "Office"
     },
     "nsis": {
       "oneClick": false,

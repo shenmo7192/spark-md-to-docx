@@ -259,13 +259,34 @@
 </head>
 <body>
 
-    <!-- AI 提示词复制区域 -->
-    <div class="prompt-section" id="prompt-section">
-        <div class="prompt-header">
-            <span class="prompt-title">AI Agent 提示词（点击复制，发送给 AI 即可生成标准公文 Markdown）</span>
-            <button class="btn btn-copy" onclick="copyPrompt()" id="copy-btn">一键复制提示词</button>
+    <header>公文排版工具</header>
+
+    <div class="container">
+        <div class="top-modules">
+            <div class="module-box" id="drop-zone">
+                <h3>📤 文件上传模块</h3>
+                <p style="font-size: 12px; color: gray;">支持拖拽 Markdown, TXT, DOCX 文件至此处</p>
+                <input type="file" id="file-input" accept=".md,.txt,.docx" style="display: none;">
+                <button class="btn" onclick="document.getElementById('file-input').click()">拖拽文件至此处</button>
+                <br>
+                <textarea id="raw-input" placeholder="或者直接在此处粘贴/输入纯文本或Markdown内容..."></textarea>
+                <button class="btn" onclick="processText()">应用排版</button>
+            </div>
+
+            <div class="module-box">
+                <h3>📥 文件下载模块</h3>
+                <p style="font-size: 12px; color: gray;">下载排版后的可编辑DOCX文件</p>
+                <button class="btn" onclick="downloadWord()">下载 标准公文排版.docx</button>
+            </div>
         </div>
-        <pre class="prompt-content" id="prompt-content">请帮我生成一份公文排版用的 Markdown 文件，严格按照以下规则编写：
+
+        <!-- AI 提示词复制区域 -->
+        <div class="prompt-section" id="prompt-section">
+            <div class="prompt-header">
+                <span class="prompt-title">AI Agent 提示词（点击复制，发送给 AI 即可生成标准公文 Markdown）</span>
+                <button class="btn btn-copy" onclick="copyPrompt()" id="copy-btn">一键复制提示词</button>
+            </div>
+            <pre class="prompt-content" id="prompt-content">请帮我生成一份公文排版用的 Markdown 文件，严格按照以下规则编写：
 
 # 文件格式要求
 - 使用 `[密级]` 标记密级（如：`[密级]公开`），此标记独占一行，放在大标题前
@@ -295,60 +316,7 @@
 - 四级标题：三号仿宋_GB2312，行距 28 磅
 - 页码：四号半角宋体阿拉伯数字，格式 " - 1 - "，奇偶页不同
 
-# 示例参考
-```
-[密级]公  开
-[大标题]关于开展2026年度单位内部自查工作的通知
-
-# 总体工作安排
-为落实上级主管部门工作部署，现就全系统自查相关事项明确如下。
-
-## 自查时间节点
-### 筹备阶段
-（1）各科室于6月10日前完成内部资料归集，整理台账、合同等档案。
-### 现场核查阶段
-（1）督查工作组6月12日—6月20日分批进驻各部门开展实地核验。
-
-## 自查范围与内容
-### 财务管理内容
-1. 经费使用合规性核查，重点核查2025.10-2026.05所有经费支出；
-2. 固定资产盘点，含办公设备、仪器、车辆等实物资产。
-
-# 报送相关要求
-## 材料格式规范
-正文采用标准公文体例，**关键数据加粗标注**，重点事项添加<u>下划线强调</u>，部分统计指标采用*斜体备注口径*。
-
-## 汇总表格参考
-|科室名称|报送日期|经办人|联系电话|
-|--------|--------|------|-----------|
-|财务科|6月9日|张三|13800138001|
-|人事科|6月9日|李四|13900139002|
-
-<p align="right">落款<br>2026年6月3日</p>
-```
-
 请按照以上格式和规则，根据用户需求生成对应的公文 Markdown 内容。仅输出 Markdown 代码块本身，不要附加额外说明。</pre>
-    </div>
-
-    <header>公文排版工具</header>
-
-    <div class="container">
-        <div class="top-modules">
-            <div class="module-box" id="drop-zone">
-                <h3>📤 文件上传模块</h3>
-                <p style="font-size: 12px; color: gray;">支持拖拽 Markdown, TXT, DOCX 文件至此处</p>
-                <input type="file" id="file-input" accept=".md,.txt,.docx" style="display: none;">
-                <button class="btn" onclick="document.getElementById('file-input').click()">拖拽文件至此处</button>
-                <br>
-                <textarea id="raw-input" placeholder="或者直接在此处粘贴/输入纯文本或Markdown内容..."></textarea>
-                <button class="btn" onclick="processText()">应用排版</button>
-            </div>
-
-            <div class="module-box">
-                <h3>📥 文件下载模块</h3>
-                <p style="font-size: 12px; color: gray;">下载排版后的可编辑DOCX文件</p>
-                <button class="btn" onclick="downloadWord()">下载 标准公文排版.docx</button>
-            </div>
         </div>
 
         <div class="module-box">
