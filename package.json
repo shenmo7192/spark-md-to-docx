@@ -1,0 +1,47 @@
+{
+  "name": "gongwen-typesetting",
+  "version": "1.0.0",
+  "description": "公文排版工具 - 将Markdown格式公文转为标准排版并导出DOCX",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "pack": "electron-builder --dir",
+    "dist:win": "electron-builder --win --x64",
+    "dist:win32": "electron-builder --win --ia32"
+  },
+  "build": {
+    "appId": "com.gongwen.typesetting",
+    "productName": "公文排版工具",
+    "directories": {
+      "output": "dist"
+    },
+    "win": {
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64",
+            "ia32"
+          ]
+        }
+      ],
+      "icon": null
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "language": "2052"
+    }
+  },
+  "author": "王楚楚",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^22.3.27",
+    "electron-builder": "^24.0.0"
+  },
+  "dependencies": {
+    "docx": "^7.8.2",
+    "mammoth": "^1.6.0",
+    "marked": "^4.3.0"
+  }
+}

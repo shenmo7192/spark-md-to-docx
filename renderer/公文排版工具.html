@@ -1,0 +1,840 @@
+
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>公文排版工具</title>
+    <script src="libs/marked.min.js"></script>
+    <script src="libs/docx.js"></script>
+    <script src="libs/mammoth.browser.min.js"></script>
+
+    <style>
+        /* ================= 页面布局设置 ================= */
+        :root {
+            --primary-color: rgb(192, 0, 0); 
+            --bg-color: rgb(242, 242, 242);  
+            --border-color: rgb(175, 171, 171); 
+        }
+
+        body {
+            font-family: "Microsoft YaHei", sans-serif;
+            font-size: 16px;
+            background-color: var(--bg-color);
+            margin: 0;
+            padding: 0;
+            display: flex;
+            flex-direction: column;
+            min-height: 100vh;
+        }
+
+        header {
+            background-color: var(--primary-color);
+            color: white;
+            text-align: center;
+            padding: 20px 0;
+            font-size: 24px;
+            font-weight: bold;
+            letter-spacing: 2px;
+        }
+
+        .container {
+            flex: 1;
+            width: 90%;
+            max-width: 1200px;
+            margin: 20px auto;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .top-modules {
+            display: flex;
+            justify-content: space-between;
+            gap: 20px;
+        }
+
+        .module-box {
+            flex: 1;
+            background: white;
+            border: 2px dashed var(--border-color);
+            border-radius: 8px;
+            padding: 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+
+        .module-box > h3 {
+            color: var(--primary-color);
+            margin-top: 0;
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 4px;
+            font-size: 16px;
+            margin: 5px;
+        }
+
+        .btn:hover {
+            background-color: #a60000;
+        }
+
+        textarea#raw-input {
+            width: 100%;
+            height: 150px;
+            margin-top: 10px;
+            border: 1px solid var(--border-color);
+            padding: 10px;
+            box-sizing: border-box;
+            resize: vertical;
+        }
+
+        .preview-controls {
+            text-align: center;
+            margin-bottom: 10px;
+        }
+        
+        .preview-wrapper {
+            width: 100%;
+            height: 700px;
+            overflow: auto;
+            background-color: #525659; 
+            padding: 40px 20px;
+            box-sizing: border-box;
+            border: 1px solid var(--border-color);
+        }
+
+        #preview-container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 30px;
+            transform-origin: top center;
+            transition: transform 0.2s;
+        }
+
+        /* ================= 公文标准 A4 单页样式 ================= */
+        .a4-page {
+            background-color: white;
+            width: 21cm;        
+            height: 29.7cm;     
+            padding: 3.5cm 2.6cm 3.3cm 2.8cm;
+            box-sizing: border-box;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+            position: relative;
+            margin: 0;
+        }
+
+        .page-header {
+            position: absolute;
+            top: 1.5cm;
+            left: 2.8cm;
+            right: 2.6cm;
+            height: 1cm;
+            font-family: "SimSun", "宋体", serif;
+            font-size: 14pt;
+            color: black !important;
+        }
+
+        .page-footer {
+            position: absolute;
+            bottom: 2.5cm;
+            left: 2.8cm;
+            right: 2.6cm;
+            font-family: "Times New Roman", "SimSun", "宋体", serif;
+            font-size: 14pt; 
+            color: black !important;
+        }
+        .page-footer.odd { text-align: right; padding-right: 1em; }
+        .page-footer.even { text-align: left; padding-left: 1em; }
+
+        .page-content {
+            width: 100%;
+            height: 22.9cm; 
+            overflow: hidden; 
+            font-family: "Times New Roman", "FangSong_GB2312", "仿宋_GB2312", "仿宋", serif;
+            font-size: 16pt; 
+            line-height: 28pt; 
+            text-align: justify;
+        }
+
+        .gw-p, .page-content p, .gw-miji, .gw-title, .gw-h1, .gw-h2, .gw-h3, .gw-h4 {
+            color: black !important;
+            margin: 0;
+            padding: 0;
+        }
+
+        .gw-p, .page-content p {
+            text-indent: 2em;
+            text-align: justify;
+        }
+        
+        .gw-miji {
+            font-family: "SimHei", "黑体", sans-serif;
+            font-size: 16pt;
+            text-align: left;
+            line-height: 28pt;
+        }
+
+        .gw-title {
+            font-family: "FZXiaoBiaoSong-B05S", "方正小标宋简体", "SimSun", serif;
+            font-size: 22pt; 
+            text-align: center;
+            line-height: 35pt; 
+            margin-bottom: 20pt;
+            font-weight: normal;
+        }
+
+        .gw-h1 { font-family: "SimHei", "黑体", sans-serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: normal; }
+        .gw-h2 { font-family: "KaiTi_GB2312", "楷体_GB2312", "楷体", serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: normal; }
+        .gw-h3 { font-family: "FangSong_GB2312", "仿宋_GB2312", "仿宋", serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: bold; }
+        .gw-h4 { font-family: "FangSong_GB2312", "仿宋_GB2312", "仿宋", serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: normal; }
+        
+        .page-content table { width: 100%; border-collapse: collapse; margin: 10px 0; text-indent: 0; color: black; }
+        .page-content th, .page-content td { border: 1px solid black; padding: 5px; font-size: 14pt; text-align: center; }
+        .page-content ul, .page-content ol { padding-left: 2em; margin: 0; color: black; }
+
+        .tutorial-module { background: white; border: 1px solid var(--border-color); padding: 20px; border-radius: 8px; font-size: 14px; }
+        .tutorial-module > h3 { color: var(--primary-color); margin-top: 0;}
+
+        footer { text-align: center; padding: 20px; color: var(--border-color); font-size: 14px; margin-top: auto; }
+
+        /* ================= AI 提示词区域 ================= */
+        .prompt-section {
+            background: white;
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            margin: 10px 20px;
+            overflow: hidden;
+        }
+        .prompt-header {
+            background: #f0f0f0;
+            padding: 12px 20px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .prompt-title {
+            font-size: 14px;
+            color: #333;
+            font-weight: bold;
+        }
+        .btn-copy {
+            background-color: #4a4a4a;
+            font-size: 13px;
+            padding: 6px 16px;
+        }
+        .btn-copy:hover {
+            background-color: #333;
+        }
+        .btn-copy.copied {
+            background-color: #27ae60;
+        }
+        .prompt-content {
+            margin: 0;
+            padding: 15px 20px;
+            font-size: 13px;
+            line-height: 1.7;
+            color: #444;
+            background: #fafafa;
+            max-height: 300px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+            border-top: 1px solid #e0e0e0;
+            cursor: pointer;
+            user-select: all;
+        }
+        .prompt-content:hover {
+            background: #f5f5f5;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- AI 提示词复制区域 -->
+    <div class="prompt-section" id="prompt-section">
+        <div class="prompt-header">
+            <span class="prompt-title">AI Agent 提示词（点击复制，发送给 AI 即可生成标准公文 Markdown）</span>
+            <button class="btn btn-copy" onclick="copyPrompt()" id="copy-btn">一键复制提示词</button>
+        </div>
+        <pre class="prompt-content" id="prompt-content">请帮我生成一份公文排版用的 Markdown 文件，严格按照以下规则编写：
+
+# 文件格式要求
+- 使用 `[密级]` 标记密级（如：`[密级]公开`），此标记独占一行，放在大标题前
+- 使用 `[大标题]` 标记大标题（如：`[大标题]关于开展2026年度工作的通知`），此标记独占一行
+- 使用 `#` 表示一级标题，`##` 表示二级标题，`###` 表示三级标题，`####` 表示四级标题。不要写序号，工具会自动编号（一级：一、二、三、…；二级：（一）（二）（三）…；三级：1. 2. 3.…；四级：（1）（2）（3）…）
+- 正文直接输入文字，每行作为独立段落，工具会自动首行缩进两字符
+- 使用 `**文字**` 表示加粗
+- 使用 `*文字*` 表示斜体
+- 使用 `<u>文字</u>` 表示下划线
+- 有序列表使用 `数字. 内容` 格式（如：`1. 第一项`）
+- 无序列表使用 `- 内容` 格式（如：`- 项目内容`）
+- 表格使用标准 Markdown 表格格式：
+  |列1|列2|列3|
+  |---|---|---|
+  |内容|内容|内容|
+- 需要右对齐的内容（如落款、日期）使用 HTML 语法：`<p align="right">部门名称<br>日期</p>`
+- 所有中文标点统一使用全角符号（，。；：（）！？），但阿拉伯数字后的小数点、逗号保持半角
+
+# 公文格式标准
+- 纸张：A4，上边距 3.5cm，下边距 3.3cm，左边距 2.8cm，右边距 2.6cm
+- 密级：三号黑体，左对齐，行距 28 磅
+- 大标题：二号方正小标宋简体，居中，行距 35 磅
+- 正文：三号仿宋_GB2312，首行缩进 2 字符，两端对齐，行距 28 磅
+- 一级标题：三号黑体，行距 28 磅
+- 二级标题：三号楷体_GB2312，行距 28 磅
+- 三级标题：三号仿宋_GB2312 加粗，行距 28 磅
+- 四级标题：三号仿宋_GB2312，行距 28 磅
+- 页码：四号半角宋体阿拉伯数字，格式 " - 1 - "，奇偶页不同
+
+# 示例参考
+```
+[密级]公  开
+[大标题]关于开展2026年度单位内部自查工作的通知
+
+# 总体工作安排
+为落实上级主管部门工作部署，现就全系统自查相关事项明确如下。
+
+## 自查时间节点
+### 筹备阶段
+（1）各科室于6月10日前完成内部资料归集，整理台账、合同等档案。
+### 现场核查阶段
+（1）督查工作组6月12日—6月20日分批进驻各部门开展实地核验。
+
+## 自查范围与内容
+### 财务管理内容
+1. 经费使用合规性核查，重点核查2025.10-2026.05所有经费支出；
+2. 固定资产盘点，含办公设备、仪器、车辆等实物资产。
+
+# 报送相关要求
+## 材料格式规范
+正文采用标准公文体例，**关键数据加粗标注**，重点事项添加<u>下划线强调</u>，部分统计指标采用*斜体备注口径*。
+
+## 汇总表格参考
+|科室名称|报送日期|经办人|联系电话|
+|--------|--------|------|-----------|
+|财务科|6月9日|张三|13800138001|
+|人事科|6月9日|李四|13900139002|
+
+<p align="right">落款<br>2026年6月3日</p>
+```
+
+请按照以上格式和规则，根据用户需求生成对应的公文 Markdown 内容。仅输出 Markdown 代码块本身，不要附加额外说明。</pre>
+    </div>
+
+    <header>公文排版工具</header>
+
+    <div class="container">
+        <div class="top-modules">
+            <div class="module-box" id="drop-zone">
+                <h3>📤 文件上传模块</h3>
+                <p style="font-size: 12px; color: gray;">支持拖拽 Markdown, TXT, DOCX 文件至此处</p>
+                <input type="file" id="file-input" accept=".md,.txt,.docx" style="display: none;">
+                <button class="btn" onclick="document.getElementById('file-input').click()">拖拽文件至此处</button>
+                <br>
+                <textarea id="raw-input" placeholder="或者直接在此处粘贴/输入纯文本或Markdown内容..."></textarea>
+                <button class="btn" onclick="processText()">应用排版</button>
+            </div>
+
+            <div class="module-box">
+                <h3>📥 文件下载模块</h3>
+                <p style="font-size: 12px; color: gray;">下载排版后的可编辑DOCX文件</p>
+                <button class="btn" onclick="downloadWord()">下载 标准公文排版.docx</button>
+            </div>
+        </div>
+
+        <div class="module-box">
+            <h3>🐢 排版预览模块</h3>
+            <div class="preview-controls">
+                <button class="btn" onclick="zoomIn()">放大🔍+</button>
+                <button class="btn" onclick="zoomOut()">缩小🔍-</button>
+                <span id="zoom-level">100%</span>
+            </div>
+            <div class="preview-wrapper">
+                <div id="preview-container">
+                    <div style="color:#999; margin-top: 100px;">
+                        此处预览生成的公文
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="tutorial-module">
+            <h3>📖 Markdown语言格式</h3>
+            <p>使用以下标签和Markdown语法，工具会自动将其转化为标准公文格式：</p>
+            <ul>
+                <li><strong>密级：</strong><code>[密级]公开</code></li>
+                <li><strong>大标题：</strong><code>[大标题]标题内容</code></li>
+                <li><strong>各级标题：</strong><code># 一级标题</code>、<code>## 二级标题</code>、<code>### 三级标题</code>、<code>#### 四级标题</code></li>
+                <li><strong>正文：</strong>直接输入文本，自动首行缩进两字符。</li>
+                <li><strong>落款右对齐：</strong>直接使用原生HTML语法 <code>&lt;p align="right"&gt;部门名称&lt;br&gt;日期&lt;/p&gt;</code></li>
+                <li><strong>加粗：</strong><code>**加粗**</code></li>
+                <li><strong>斜体：</strong><code>*斜体*</code></li>
+                <li><strong>下划线：</strong>直接使用原生HTML语法 <code>&lt;u&gt下划线强调&lt;/u&gt</code></li>
+                <li><strong>表格：</strong><code>找万能的AI吧</code></li>
+                <li><strong>有序列表：</strong><code>"数字"+"."+"空格"</code></li>
+                <li><strong>无序列表：</strong><code>"-"+"空格"</code></li>
+            </ul>
+        </div>
+    </div>
+
+    <footer>作者：王楚楚<br>星火计划 · AI 赋能智慧办公</footer>
+
+    <script>
+        /* ================= AI 提示词复制功能 ================= */
+        function copyPrompt() {
+            const promptText = document.getElementById('prompt-content').innerText;
+            const btn = document.getElementById('copy-btn');
+            
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(promptText).then(() => {
+                    btn.textContent = '已复制！';
+                    btn.classList.add('copied');
+                    setTimeout(() => {
+                        btn.textContent = '一键复制提示词';
+                        btn.classList.remove('copied');
+                    }, 2000);
+                }).catch(() => {
+                    fallbackCopy(promptText, btn);
+                });
+            } else {
+                fallbackCopy(promptText, btn);
+            }
+        }
+        
+        function fallbackCopy(text, btn) {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            try {
+                document.execCommand('copy');
+                btn.textContent = '已复制！';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '一键复制提示词';
+                    btn.classList.remove('copied');
+                }, 2000);
+            } catch (e) {
+                alert('复制失败，请手动选择复制');
+            } finally {
+                document.body.removeChild(textarea);
+            }
+        }
+
+        /* ================= 核心处理逻辑 ================= */
+        
+        let currentScale = 1;
+        const cnNums = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五"];
+        let parsedDocumentData = []; 
+        let pageNum = 1;
+        let container = null;
+        let currentPage = null;
+        let currentContentArea = null;
+
+        function zoomIn() { currentScale += 0.1; updateZoom(); }
+        function zoomOut() { if(currentScale > 0.4) { currentScale -= 0.1; updateZoom(); } }
+        function updateZoom() {
+            document.getElementById('preview-container').style.transform = `scale(${currentScale})`;
+            document.getElementById('zoom-level').innerText = Math.round(currentScale * 100) + '%';
+        }
+
+        // 保持阿拉伯数字后的标点状态为半角
+        function convertPunctuation(text) {
+            text = text.replace(/(\d)\.(\d)/g, '$1【POINT】$2');
+            text = text.replace(/(\d),(\d)/g, '$1【COMMA】$2');
+            
+            const pMap = { '.': 'DOT', ',': 'CM', ';': 'SMC', ':': 'COL', '!': 'EXC', '?': 'QUE', ')': 'RPR', '(': 'LPR' };
+            const rMap = { 'DOT': '.', 'CM': ',', 'SMC': ';', 'COL': ':', 'EXC': '!', 'QUE': '?', 'RPR': ')', 'LPR': '(' };
+            
+            text = text.replace(/(\d)([\.,;:!\?\)\(\\])/g, (match, p1, p2) => {
+                return p1 + '【KEEP_' + (pMap[p2] || 'UNK') + '】';
+            });
+
+            text = text.replace(/,/g, '，').replace(/\./g, '。')
+                       .replace(/;/g, '；').replace(/:/g, '：')
+                       .replace(/\(/g, '（').replace(/\)/g, '）')
+                       .replace(/\?/g, '？').replace(/!/g, '！');
+
+            text = text.replace(/【KEEP_(\w+)】/g, (match, p1) => {
+                return rMap[p1] || '';
+            });
+            text = text.replace(/【POINT】/g, '.').replace(/【COMMA】/g, ',');
+            return text;
+        }
+
+        function createNewPageElement(num) {
+            let page = document.createElement('div');
+            page.className = 'a4-page';
+            
+            let header = document.createElement('div');
+            header.className = 'page-header';
+            page.appendChild(header);
+
+            let content = document.createElement('div');
+            content.className = 'page-content';
+            page.appendChild(content);
+
+            let footer = document.createElement('div');
+            footer.className = `page-footer ${num % 2 === 1 ? 'odd' : 'even'}`;
+            footer.innerText = `- ${num} -`;
+            page.appendChild(footer);
+
+            return page;
+        }
+
+        function appendElementWithSplitting(element) {
+            currentContentArea.appendChild(element);
+
+            if (currentContentArea.scrollHeight > currentContentArea.clientHeight) {
+                if (currentContentArea.children.length > 1) {
+                    currentContentArea.removeChild(element);
+                    
+                    pageNum++;
+                    currentPage = createNewPageElement(pageNum);
+                    container.appendChild(currentPage);
+                    currentContentArea = currentPage.querySelector('.page-content');
+                    
+                    appendElementWithSplitting(element);
+                } 
+                else {
+                    currentContentArea.removeChild(element);
+                    
+                    let fullText = element.innerText;
+                    let tagName = element.tagName;
+                    let className = element.className;
+                    let inlineStyle = element.style.cssText; // 捕获并保留可能存在的右对齐内联样式
+                    
+                    let newPara = document.createElement(tagName);
+                    newPara.className = className;
+                    if(inlineStyle) newPara.style.cssText = inlineStyle;
+                    currentContentArea.appendChild(newPara);
+                    
+                    for (let i = 0; i < fullText.length; i++) {
+                        newPara.innerText += fullText[i];
+                        
+                        if (currentContentArea.scrollHeight > currentContentArea.clientHeight) {
+                            newPara.innerText = newPara.innerText.slice(0, -1);
+                            
+                            pageNum++;
+                            currentPage = createNewPageElement(pageNum);
+                            container.appendChild(currentPage);
+                            currentContentArea = currentPage.querySelector('.page-content');
+                            
+                            newPara = document.createElement(tagName);
+                            newPara.className = className;
+                            if(inlineStyle) newPara.style.cssText = inlineStyle;
+                            newPara.style.textIndent = '0px'; 
+                            currentContentArea.appendChild(newPara);
+                            
+                            newPara.innerText += fullText[i];
+                        }
+                    }
+                }
+            }
+        }
+
+        function processText() {
+            let rawText = document.getElementById('raw-input').value;
+            if(!rawText.trim()) return;
+
+            container = document.getElementById('preview-container');
+            container.style.transform = 'none'; 
+
+            rawText = convertPunctuation(rawText);
+            let lines = rawText.split('\n');
+            
+            let blocksHtml = []; 
+            parsedDocumentData = []; 
+            
+            let h1Count = 0, h2Count = 0, h3Count = 0, h4Count = 0;
+            let currentMdSegment = [];
+
+            function flushMd() {
+                if (currentMdSegment.length > 0) {
+                    let html = marked.parse(currentMdSegment.join('\n'));
+                    let tempDiv = document.createElement('div');
+                    tempDiv.innerHTML = html;
+                    
+                    Array.from(tempDiv.children).forEach(child => {
+                        // 修复点3：精准判断HTML节点上是否存在原生 align="right" 样式标记
+                        let alignment = 'justified';
+                        if (child.getAttribute('align') === 'right' || child.style.textAlign === 'right') {
+                            alignment = 'right';
+                        }
+
+                        if(child.tagName === 'TABLE') {
+                            // 修复点2：单独存储表格节点HTML，防止结构丢失
+                            parsedDocumentData.push({ type: 'table', html: child.outerHTML });
+                            blocksHtml.push(child.outerHTML);
+                        } else if(child.tagName === 'P') {
+                            child.classList.add('gw-p');
+                            if(alignment === 'right') {
+                                child.style.textAlign = 'right';
+                                child.style.textIndent = '0px'; // 落款清空缩进
+                            }
+                            parsedDocumentData.push({ type: 'paragraph', raw: child.innerHTML, align: alignment });
+                            blocksHtml.push(child.outerHTML);
+                        } else {
+                            parsedDocumentData.push({ type: 'paragraph', raw: child.outerHTML, align: alignment });
+                            blocksHtml.push(child.outerHTML);
+                        }
+                    });
+                    currentMdSegment = [];
+                }
+            }
+
+            for (let i = 0; i < lines.length; i++) {
+                let line = lines[i];
+                let trimmed = line.trim();
+                if (!trimmed) continue;
+
+                if (trimmed.startsWith('[密级]') || trimmed.startsWith('[大标题]') || trimmed.startsWith('#')) {
+                    flushMd();
+                    if (trimmed.startsWith('[密级]')) {
+                        let content = trimmed.substring(4);
+                        blocksHtml.push(`<div class="gw-miji">${content}</div>`);
+                        parsedDocumentData.push({ type: 'miji', text: content });
+                    } else if (trimmed.startsWith('[大标题]')) {
+                        let content = trimmed.substring(5);
+                        blocksHtml.push(`<div class="gw-title">${content}</div>`);
+                        parsedDocumentData.push({ type: 'title', text: content });
+                    } else if (line.startsWith('# ')) {
+                        h1Count++; h2Count = 0; h3Count = 0; h4Count = 0;
+                        let text = line.substring(2).trim();
+                        let fullText = `${cnNums[h1Count]}、${text}`;
+                        blocksHtml.push(`<h1 class="gw-h1">${fullText}</h1>`);
+                        parsedDocumentData.push({ type: 'h1', text: fullText });
+                    } else if (line.startsWith('## ')) {
+                        h2Count++; h3Count = 0; h4Count = 0;
+                        let text = line.substring(3).trim();
+                        let fullText = `（${cnNums[h2Count]}）${text}`;
+                        blocksHtml.push(`<h2 class="gw-h2">${fullText}</h2>`);
+                        parsedDocumentData.push({ type: 'h2', text: fullText });
+                    } else if (line.startsWith('### ')) {
+                        h3Count++; h4Count = 0;
+                        let text = line.substring(4).trim();
+                        let fullText = `${h3Count}.${text}`;
+                        blocksHtml.push(`<h3 class="gw-h3">${fullText}</h3>`);
+                        parsedDocumentData.push({ type: 'h3', text: fullText });
+                    } else if (line.startsWith('#### ')) {
+                        h4Count++;
+                        let text = line.substring(5).trim();
+                        let fullText = `（${h4Count}）${text}`;
+                        blocksHtml.push(`<h4 class="gw-h4">${fullText}</h4>`);
+                        parsedDocumentData.push({ type: 'h4', text: fullText });
+                    }
+                } else {
+                    currentMdSegment.push(line);
+                }
+            }
+            flushMd();
+
+            container.innerHTML = ''; 
+
+            pageNum = 1;
+            currentPage = createNewPageElement(pageNum);
+            container.appendChild(currentPage);
+            currentContentArea = currentPage.querySelector('.page-content');
+
+            blocksHtml.forEach(htmlStr => {
+                let tempNode = document.createElement('div');
+                tempNode.innerHTML = htmlStr;
+                let elements = Array.from(tempNode.children);
+                
+                elements.forEach(element => {
+                    appendElementWithSplitting(element);
+                });
+            });
+
+            updateZoom();
+        }
+
+        // 上传模块拖拽解析
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(ev => dropZone.addEventListener(ev, e=>{e.preventDefault();e.stopPropagation();}, false));
+        dropZone.addEventListener('drop', e => handleFiles(e.dataTransfer.files), false);
+        fileInput.addEventListener('change', e => handleFiles(e.target.files), false);
+
+        function handleFiles(files) {
+            if(files.length === 0) return;
+            let file = files[0];
+            let ext = file.name.split('.').pop().toLowerCase();
+
+            if (ext === 'txt' || ext === 'md') {
+                let reader = new FileReader();
+                reader.onload = e => { document.getElementById('raw-input').value = e.target.result; processText(); };
+                reader.readAsText(file);
+            } else if (ext === 'docx') {
+                let reader = new FileReader();
+                reader.onload = e => {
+                    mammoth.extractRawText({arrayBuffer: e.target.result})
+                        .then(res => { document.getElementById('raw-input').value = res.value; processText(); })
+                        .catch(err => alert("读取DOCX失败: " + err.message));
+                };
+                reader.readAsArrayBuffer(file);
+            } else {
+                alert("请上传 md, txt 或 docx 格式文件。");
+            }
+        }
+
+        async function downloadWord() {
+            if (parsedDocumentData.length === 0) { alert("请先应用排版！"); return; }
+            
+            try {
+                const d = window.docx || (typeof docx !== 'undefined' ? docx : null);
+                if (!d) { throw new Error("Docx 库未挂载成功，请检查依赖或刷新页面重试。"); }
+
+                let docChildren = [];
+                parsedDocumentData.forEach(item => {
+                    if (item.type === 'miji') {
+                        docChildren.push(new d.Paragraph({
+                            children: [new d.TextRun({ text: item.text, font: "黑体", size: 32, color: "000000" })],
+                            alignment: d.AlignmentType.LEFT, spacing: { line: 560, lineRule: "exact" }
+                        }));
+                    }
+                    else if (item.type === 'title') {
+                        docChildren.push(new d.Paragraph({
+                            children: [new d.TextRun({ text: item.text, font: "方正小标宋简体", size: 44, color: "000000" })],
+                            alignment: d.AlignmentType.CENTER, spacing: { line: 700, lineRule: "exact", after: 400 }
+                        }));
+                    }
+                    else if (['h1','h2','h3','h4'].includes(item.type)) {
+                        let fontMap = { h1: "黑体", h2: "楷体_GB2312", h3: "仿宋_GB2312", h4: "仿宋_GB2312" };
+                        let boldMap = { h1: false, h2: false, h3: true, h4: false };
+                        let headingLevelMap = { h1: d.HeadingLevel.HEADING_1, h2: d.HeadingLevel.HEADING_2, h3: d.HeadingLevel.HEADING_3, h4: d.HeadingLevel.HEADING_4 };
+
+                        docChildren.push(new d.Paragraph({
+                            heading: headingLevelMap[item.type],
+                            children: [new d.TextRun({ text: item.text, font: fontMap[item.type], bold: boldMap[item.type], size: 32, color: "000000" })],
+                            indent: { firstLine: 640 }, spacing: { line: 560, lineRule: "exact" }
+                        }));
+                    }
+                    else if (item.type === 'paragraph') {
+                        // 修复点3：将内容以 <br> 标识符切分为独立的物理行单独渲染，防止内容糅合在一起
+                        let lines = item.raw.split(/<br\s*\/?>/i);
+                        lines.forEach((lineText, idx) => {
+                            let textClean = lineText.replace(/<\/?[^>]+(>|$)/g, "").trim();
+                            if (!textClean && idx === lines.length - 1 && lines.length > 1) return; // 跳过最后的空行
+
+                            let pAlign = d.AlignmentType.JUSTIFIED;
+                            let pIndent = { firstLine: 640 };
+                            
+                            if (item.align === 'right') {
+                                pAlign = d.AlignmentType.RIGHT;
+                                pIndent = undefined; // 右对齐时清空缩进
+                            }
+                            
+                            docChildren.push(new d.Paragraph({
+                                children: [new d.TextRun({ text: textClean, font: "仿宋_GB2312", size: 32, color: "000000" })],
+                                indent: pIndent,
+                                alignment: pAlign,
+                                spacing: { line: 560, lineRule: "exact" }
+                            }));
+                        });
+                    }
+                    else if (item.type === 'table') {
+                        // 修复点2：专门针对 Table 元素在 Word 内部进行重构映射
+                        let parser = new DOMParser();
+                        let docTable = parser.parseFromString(item.html, 'text/html').querySelector('table');
+                        let docxRows = [];
+                        
+                        let rows = docTable.querySelectorAll('tr');
+                        rows.forEach(row => {
+                            let docxCells = [];
+                            let cells = row.querySelectorAll('th, td');
+                            cells.forEach(cell => {
+                                let cellText = cell.innerText.trim();
+                                let isHeader = cell.tagName === 'TH';
+                                
+                                docxCells.push(new d.TableCell({
+                                    children: [new d.Paragraph({
+                                        children: [new d.TextRun({ 
+                                            text: cellText, 
+                                            font: isHeader ? "黑体" : "仿宋_GB2312", 
+                                            size: 28, 
+                                            color: "000000",
+                                            bold: isHeader
+                                        })],
+                                        alignment: d.AlignmentType.CENTER
+                                    })],
+                                    borders: {
+                                        top: { style: d.BorderStyle.SINGLE, size: 4, color: "000000" },
+                                        bottom: { style: d.BorderStyle.SINGLE, size: 4, color: "000000" },
+                                        left: { style: d.BorderStyle.SINGLE, size: 4, color: "000000" },
+                                        right: { style: d.BorderStyle.SINGLE, size: 4, color: "000000" },
+                                    }
+                                }));
+                            });
+                            if (docxCells.length > 0) {
+                                docxRows.push(new d.TableRow({ children: docxCells }));
+                            }
+                        });
+                        
+                        if (docxRows.length > 0) {
+                            docChildren.push(new d.Table({
+                                rows: docxRows,
+                                alignment: d.AlignmentType.CENTER,
+                                width: { size: 9000, type: d.WidthType.DXA } // 充满版心宽度
+                            }));
+                            // 表格后补充一个空行保持公文美观间距
+                            docChildren.push(new d.Paragraph({ spacing: { before: 120 } }));
+                        }
+                    }
+                });
+
+                const doc = new d.Document({
+                    creator: "公文排版工具",
+                    title: "标准公文",
+                    evenAndOddHeadersFooters: true, 
+                    sections: [{
+                        properties: {
+                            page: {
+                                size: { width: 11906, height: 16838 }, 
+                                margin: { top: 1984, bottom: 1871, left: 1587, right: 1474, header: 850, footer: 1417 }
+                            },
+                            grid: { linePitch: 708, type: "linesAndChars" }
+                        },
+                        footers: {
+                            default: new d.Footer({
+                                children: [new d.Paragraph({
+                                    alignment: d.AlignmentType.RIGHT, indent: { right: 280 },
+                                    children: [new d.TextRun({ text: "- ", font: "宋体", size: 28, color:"000000" }), d.PageNumber.CURRENT, new d.TextRun({ text: " -", font: "宋体", size: 28, color:"000000" })]
+                                })]
+                            }),
+                            even: new d.Footer({
+                                children: [new d.Paragraph({
+                                    alignment: d.AlignmentType.LEFT, indent: { left: 280 },
+                                    children: [new d.TextRun({ text: "- ", font: "宋体", size: 28, color:"000000" }), d.PageNumber.CURRENT, new d.TextRun({ text: " -", font: "宋体", size: 28, color:"000000" })]
+                                })]
+                            })
+                        },
+                        children: docChildren
+                    }]
+                });
+
+                d.Packer.toBlob(doc).then(blob => {
+                    const url = window.URL.createObjectURL(blob);
+                    const a = document.createElement("a");
+                    a.href = url; a.download = "标准公文排版.docx";
+                    document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url);
+                });
+            } catch (error) {
+                alert("生成Word文档失败，错误信息: " + error.message);
+            }
+        }
+    </script>
+</body>
+</html>
