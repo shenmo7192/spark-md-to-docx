@@ -50,10 +50,13 @@ jobs:
           path: node_modules
           key: ${{ runner.os }}-arm64-${{ hashFiles('package-lock.json') }}
 
+      - name: Install native fpm for arm64 (.deb packaging)
+        run: sudo gem install fpm
+
       - run: npm ci
 
       - name: Build Linux arm64
-        run: npx electron-builder --linux --arm64 --publish never
+        run: USE_SYSTEM_FPM=true npx electron-builder --linux --arm64 --publish never
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v4
