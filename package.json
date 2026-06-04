@@ -38,7 +38,8 @@
         }
       ],
       "icon": "build/icons",
-      "category": "Office"
+      "category": "Office",
+      "maintainer": "shenmo@spark-app.store"
     },
     "nsis": {
       "oneClick": false,
@@ -46,7 +47,7 @@
       "language": "2052"
     }
   },
-  "author": "王楚楚",
+  "author": "shenmo&WCC",
   "license": "MIT",
   "devDependencies": {
     "electron": "^22.3.27",
