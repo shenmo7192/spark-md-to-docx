@@ -135,7 +135,8 @@
             top: 1.5cm;
             left: 2.8cm;
             right: 2.6cm;
-            height: 1cm;
+            height: 0;
+            overflow: hidden;
             font-family: "SimSun", "宋体", serif;
             font-size: 14pt;
             color: black !important;
@@ -194,6 +195,30 @@
         .gw-h2 { font-family: "KaiTi_GB2312", "楷体_GB2312", "楷体", serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: normal; }
         .gw-h3 { font-family: "FangSong_GB2312", "仿宋_GB2312", "仿宋", serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: bold; }
         .gw-h4 { font-family: "FangSong_GB2312", "仿宋_GB2312", "仿宋", serif; font-size: 16pt; text-indent: 2em; line-height: 28pt; font-weight: normal; }
+
+        /* 正文段落（替代旧的.gw-p） */
+        .official-body {
+            font-family: inherit;
+            font-size: 16pt;
+            line-height: 28pt;
+            text-indent: 2em;
+            margin: 0;
+            padding: 0;
+            color: black !important;
+            text-align: justify;
+        }
+        .official-body.align-left {
+            text-align: left !important;
+            text-indent: 0 !important;
+        }
+        .official-body.align-center {
+            text-align: center !important;
+            text-indent: 0 !important;
+        }
+        .official-body.align-right {
+            text-align: right !important;
+            text-indent: 0 !important;
+        }
         
         .page-content table { width: 100%; border-collapse: collapse; margin: 10px 0; text-indent: 0; color: black; }
         .page-content th, .page-content td { border: 1px solid black; padding: 5px; font-size: 14pt; text-align: center; }
@@ -305,7 +330,7 @@
   |列1|列2|列3|
   |---|---|---|
   |内容|内容|内容|
-- 需要右对齐的内容（如落款、日期）使用 HTML 语法：`<p align="right">部门名称<br>日期</p>`
+- 需要右对齐的内容（如落款、日期）使用 HTML 语法：`<p align="right">部门名称<br>日期</p>`（支持 left/center/right）
 - 所有中文标点统一使用全角符号（，。；：（）！？），但阿拉伯数字后的小数点、逗号保持半角
 
 # 公文格式标准
@@ -346,7 +371,7 @@
                 <li><strong>大标题：</strong><code>[大标题]标题内容</code></li>
                 <li><strong>各级标题：</strong><code># 一级标题</code>、<code>## 二级标题</code>、<code>### 三级标题</code>、<code>#### 四级标题</code></li>
                 <li><strong>正文：</strong>直接输入文本，自动首行缩进两字符。</li>
-                <li><strong>落款右对齐：</strong>直接使用原生HTML语法 <code>&lt;p align="right"&gt;部门名称&lt;br&gt;日期&lt;/p&gt;</code></li>
+                <li><strong>落款对齐：</strong>使用 <code>&lt;p align="right"&gt;部门名称&lt;br&gt;日期&lt;/p&gt;</code>（支持 left/center/right）</li>
                 <li><strong>加粗：</strong><code>**加粗**</code></li>
                 <li><strong>斜体：</strong><code>*斜体*</code></li>
                 <li><strong>下划线：</strong>直接使用原生HTML语法 <code>&lt;u&gt下划线强调&lt;/u&gt</code></li>
@@ -409,10 +434,7 @@
         let docTitle = '';
         const cnNums = ["", "一", "二", "三", "四", "五", "六", "七", "八", "九", "十", "十一", "十二", "十三", "十四", "十五"];
         let parsedDocumentData = []; 
-        let pageNum = 1;
         let container = null;
-        let currentPage = null;
-        let currentContentArea = null;
 
         function zoomIn() { currentScale += 0.1; updateZoom(); }
         function zoomOut() { if(currentScale > 0.4) { currentScale -= 0.1; updateZoom(); } }
@@ -434,31 +456,43 @@
         // 标点转换：中文符号全角化，但阿拉伯数字后的标点保持半角
         function convertPunctuation(text) {
             if (!text) return text;
-            // 保护数字间的小数点和千分位逗号
             text = text.replace(/(\d)\.(\d)/g, '$1【DOT】$2');
             text = text.replace(/(\d),(\d)/g, '$1【COMMA】$2');
 
             const pMap = { '.': 'DOT', ',': 'CM', ';': 'SMC', ':': 'COL', '!': 'EXC', '?': 'QUE', ')': 'RPR', '(': 'LPR' };
             const rMap = { 'DOT': '.', 'CM': ',', 'SMC': ';', 'COL': ':', 'EXC': '!', 'QUE': '?', 'RPR': ')', 'LPR': '(' };
 
-            // 数字后的标点保持半角
             text = text.replace(/(\d)([\.,;:!\?\)\(\\])/g, (match, p1, p2) => {
                 return p1 + '【KEEP_' + (pMap[p2] || 'UNK') + '】';
             });
 
-            // 全局中文标点全角化
             text = text.replace(/,/g, '，').replace(/\./g, '。')
                        .replace(/;/g, '；').replace(/:/g, '：')
                        .replace(/\(/g, '（').replace(/\)/g, '）')
                        .replace(/\?/g, '？').replace(/!/g, '！');
 
-            // 恢复数字后半角标点
             text = text.replace(/【KEEP_(\w+)】/g, (match, p1) => rMap[p1] || '');
             text = text.replace(/【DOT】/g, '.').replace(/【COMMA】/g, ',');
             return text;
         }
 
-        function createNewPageElement(num) {
+        // ==================== 分页渲染逻辑 ====================
+        const LINES_PER_PAGE = 22;
+        const CHARS_PER_LINE = 28;
+
+        const measureDiv = document.createElement('div');
+        document.body.appendChild(measureDiv);
+        measureDiv.style.cssText = 'position:fixed;left:-9999px;top:0;visibility:hidden;width:15.4cm;font-family:"Times New Roman","FangSong_GB2312","仿宋",serif;font-size:16pt;line-height:28pt;';
+
+        function measureLines(html) {
+            measureDiv.innerHTML = html || '';
+            const heightPx = measureDiv.scrollHeight;
+            const lhPx = parseFloat(getComputedStyle(measureDiv).lineHeight) || 37.3;
+            measureDiv.innerHTML = '';
+            return Math.max(1, Math.round(heightPx / lhPx));
+        }
+
+        function createPage(num) {
             let page = document.createElement('div');
             page.className = 'a4-page';
             
@@ -478,205 +512,243 @@
             return page;
         }
 
-        function appendElementWithSplitting(element) {
-            currentContentArea.appendChild(element);
-
-            if (currentContentArea.scrollHeight > currentContentArea.clientHeight) {
-                if (currentContentArea.children.length > 1) {
-                    // 元素可整体移到下一页
-                    currentContentArea.removeChild(element);
-                    pageNum++;
-                    currentPage = createNewPageElement(pageNum);
-                    container.appendChild(currentPage);
-                    currentContentArea = currentPage.querySelector('.page-content');
-                    appendElementWithSplitting(element);
-                } else {
-                    // 单个元素超出一页，需要逐字拆分（支持跨多页）
-                    currentContentArea.removeChild(element);
-                    
-                    let fullText = element.innerText;
-                    let tagName = element.tagName;
-                    let className = element.className;
-                    let inlineStyle = element.style.cssText;
-                    let charIndex = 0;
-
-                    while (charIndex < fullText.length) {
-                        let newPara = document.createElement(tagName);
-                        newPara.className = className;
-                        if (inlineStyle) newPara.style.cssText = inlineStyle;
-                        // 续页段落不缩进
-                        if (currentContentArea.children.length > 0 || charIndex > 0) {
-                            newPara.style.textIndent = '0px';
-                        }
-                        currentContentArea.appendChild(newPara);
-
-                        while (charIndex < fullText.length) {
-                            newPara.innerText += fullText[charIndex];
-                            charIndex++;
-                            if (currentContentArea.scrollHeight > currentContentArea.clientHeight) {
-                                newPara.innerText = newPara.innerText.slice(0, -1);
-                                charIndex--;
-                                // 创建新页
-                                pageNum++;
-                                currentPage = createNewPageElement(pageNum);
-                                container.appendChild(currentPage);
-                                currentContentArea = currentPage.querySelector('.page-content');
-                                break; // 到新页继续填充
-                            }
-                        }
-                    }
-                }
-            }
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
         }
 
+        // ==================== 主处理函数 ====================
         function processText() {
             let rawText = document.getElementById('raw-input').value;
             if(!rawText.trim()) return;
 
+            // 全局标点转换
+            rawText = convertPunctuation(rawText);
+            const lines = rawText.split('\n');
+
             container = document.getElementById('preview-container');
-            container.style.transform = 'none'; 
+            container.style.transform = 'none';
+            container.innerHTML = '';
 
-            // 预处理：保留 <br> 标签不被标点转换破坏，转换 HTML 实体
-            let lines = rawText.split('\n');
-            
-            let blocksHtml = []; 
-            parsedDocumentData = []; 
-            
+            const blocks = [];
             let h1Count = 0, h2Count = 0, h3Count = 0, h4Count = 0;
-            let currentMdSegment = [];
 
-            function flushMd() {
-                if (currentMdSegment.length > 0) {
-                    let mdText = currentMdSegment.join('\n');
-                    let html = marked.parse(mdText, { breaks: true });
-                    let tempDiv = document.createElement('div');
-                    tempDiv.innerHTML = html;
-                    
-                    // 在 DOM 上转换标点，不破坏 HTML 标签
-                    convertPunctuationOnDOM(tempDiv);
-
-                    // 递归处理子元素
-                    function processChild(child) {
-                        let align = (child.getAttribute('align') || '').toLowerCase();
-                        let styleAlign = (child.style && child.style.textAlign || '').toLowerCase();
-                        let detectedAlign = align || styleAlign || '';
-
-                        if (child.tagName === 'TABLE') {
-                            parsedDocumentData.push({ type: 'table', html: child.outerHTML });
-                            blocksHtml.push(child.outerHTML);
-                        } else if (child.tagName === 'UL' || child.tagName === 'OL') {
-                            let items = [];
-                            Array.from(child.querySelectorAll('li')).forEach(li => {
-                                items.push(li.innerHTML.replace(/<\/?[^>]+(>|$)/g, '').trim());
-                            });
-                            parsedDocumentData.push({ type: 'list', ordered: child.tagName === 'OL', items: items });
-                            blocksHtml.push(child.outerHTML);
-                        } else if (child.tagName === 'P') {
-                            child.classList.add('gw-p');
-                            if (detectedAlign === 'right') {
-                                child.style.textAlign = 'right';
-                                child.style.textIndent = '0px';
-                            } else if (detectedAlign === 'center') {
-                                child.style.textAlign = 'center';
-                                child.style.textIndent = '0px';
-                            } else if (detectedAlign === 'left') {
-                                child.style.textAlign = 'left';
-                                child.style.textIndent = '0px';
-                            }
-                            parsedDocumentData.push({ type: 'paragraph', raw: child.innerHTML, align: detectedAlign || 'justified' });
-                            blocksHtml.push(child.outerHTML);
-                        } else if (child.tagName === 'H1' || child.tagName === 'H2' || 
-                                   child.tagName === 'H3' || child.tagName === 'H4' ||
-                                   child.tagName === 'H5' || child.tagName === 'H6') {
-                            // 用户原始 HTML 标题，保留
-                            child.style.textIndent = '2em';
-                            parsedDocumentData.push({ type: 'paragraph', raw: child.outerHTML, align: 'justified' });
-                            blocksHtml.push(child.outerHTML);
-                        } else if (child.tagName === 'UL' || child.tagName === 'OL') {
-                            // 已在上面处理
-                        } else if (child.children && child.children.length > 0) {
-                            // 递归处理容器元素（如 DIV）
-                            Array.from(child.children).forEach(c => processChild(c));
-                        } else {
-                            parsedDocumentData.push({ type: 'paragraph', raw: child.outerHTML, align: detectedAlign || 'justified' });
-                            blocksHtml.push(child.outerHTML);
-                        }
-                    }
-
-                    Array.from(tempDiv.children).forEach(child => processChild(child));
-                    currentMdSegment = [];
-                }
-            }
+            // 预处理一：合并多行对齐标签
+            let mergedLines = [];
+            let inAlignBlock = false;
+            let alignBuffer = [];
+            let alignType = '';
 
             for (let i = 0; i < lines.length; i++) {
-                let line = lines[i];
-                let trimmed = line.trim();
-                if (!trimmed) {
-                    // 空行刷新当前 MD 段落（markdown 段落分隔）
-                    flushMd();
+                const line = lines[i];
+                const trimmed = line.trim();
+
+                const startMatch = trimmed.match(/^<(p|div)\s+align=["'](left|right|center)["']\s*>$/i);
+                if (startMatch) {
+                    inAlignBlock = true;
+                    alignType = startMatch[2].toLowerCase();
+                    alignBuffer = [];
                     continue;
                 }
 
-                if (trimmed.startsWith('[密级]') || trimmed.startsWith('[大标题]') || trimmed.startsWith('#')) {
-                    flushMd();
-                    if (trimmed.startsWith('[密级]')) {
-                        let content = convertPunctuation(trimmed.substring(4));
-                        blocksHtml.push(`<div class="gw-miji">${content}</div>`);
-                        parsedDocumentData.push({ type: 'miji', text: content });
-                    } else if (trimmed.startsWith('[大标题]')) {
-                        let content = convertPunctuation(trimmed.substring(5));
-                        docTitle = content;
-                        document.getElementById('download-filename').value = content;
-                        document.getElementById('download-filename-label').innerText = content;
-                        blocksHtml.push(`<div class="gw-title">${content}</div>`);
-                        parsedDocumentData.push({ type: 'title', text: content });
-                    } else if (line.startsWith('# ')) {
-                        h1Count++; h2Count = 0; h3Count = 0; h4Count = 0;
-                        let text = convertPunctuation(line.substring(2).trim());
-                        let fullText = `${cnNums[h1Count]}、${text}`;
-                        blocksHtml.push(`<h1 class="gw-h1">${fullText}</h1>`);
-                        parsedDocumentData.push({ type: 'h1', text: fullText });
-                    } else if (line.startsWith('## ')) {
-                        h2Count++; h3Count = 0; h4Count = 0;
-                        let text = convertPunctuation(line.substring(3).trim());
-                        let fullText = `（${cnNums[h2Count]}）${text}`;
-                        blocksHtml.push(`<h2 class="gw-h2">${fullText}</h2>`);
-                        parsedDocumentData.push({ type: 'h2', text: fullText });
-                    } else if (line.startsWith('### ')) {
-                        h3Count++; h4Count = 0;
-                        let text = convertPunctuation(line.substring(4).trim());
-                        let fullText = `${h3Count}.${text}`;
-                        blocksHtml.push(`<h3 class="gw-h3">${fullText}</h3>`);
-                        parsedDocumentData.push({ type: 'h3', text: fullText });
-                    } else if (line.startsWith('#### ')) {
-                        h4Count++;
-                        let text = convertPunctuation(line.substring(5).trim());
-                        let fullText = `（${h4Count}）${text}`;
-                        blocksHtml.push(`<h4 class="gw-h4">${fullText}</h4>`);
-                        parsedDocumentData.push({ type: 'h4', text: fullText });
-                    }
+                if (inAlignBlock && trimmed.match(/^<\/(p|div)>$/i)) {
+                    inAlignBlock = false;
+                    mergedLines.push(`__ALIGN_${alignType.toUpperCase()}__${alignBuffer.join('¶¶¶')}__ENDALIGN__`);
+                    continue;
+                }
+
+                if (inAlignBlock) {
+                    alignBuffer.push(trimmed);
+                    continue;
+                }
+
+                const singleMatch = trimmed.match(/^<(p|div)\s+align=["'](left|right|center)["']>(.*)<\/(p|div)>$/i);
+                if (singleMatch) {
+                    mergedLines.push(`__ALIGN_${singleMatch[2].toUpperCase()}__${singleMatch[3]}__ENDALIGN__`);
+                    continue;
+                }
+
+                const plainPMatch = trimmed.match(/^<p>(.*)<\/p>$/i);
+                if (plainPMatch) {
+                    mergedLines.push(plainPMatch[1]);
+                    continue;
+                }
+                const plainDivMatch = trimmed.match(/^<div>(.*)<\/div>$/i);
+                if (plainDivMatch) {
+                    mergedLines.push(plainDivMatch[1]);
+                    continue;
+                }
+
+                mergedLines.push(line);
+            }
+            if (inAlignBlock && alignBuffer.length > 0) {
+                mergedLines.push(...alignBuffer);
+            }
+
+            // 预处理二：合并连续的表格行
+            let tableMerged = [];
+            let inTable = false;
+            let tableBuffer = [];
+            for (let i = 0; i < mergedLines.length; i++) {
+                const trimmed = mergedLines[i].trim();
+                const isTableRow = /^\|.*\|$/.test(trimmed);
+                if (isTableRow) {
+                    if (!inTable) { inTable = true; tableBuffer = []; }
+                    tableBuffer.push(trimmed);
                 } else {
-                    currentMdSegment.push(line);
+                    if (inTable) {
+                        inTable = false;
+                        tableMerged.push(tableBuffer.join('\n'));
+                        tableBuffer = [];
+                    }
+                    tableMerged.push(mergedLines[i]);
                 }
             }
-            flushMd();
+            if (inTable && tableBuffer.length > 0) {
+                tableMerged.push(tableBuffer.join('\n'));
+            }
+            mergedLines = tableMerged;
 
-            container.innerHTML = ''; 
+            // 逐行解析
+            for (let i = 0; i < mergedLines.length; i++) {
+                const trimmed = mergedLines[i].trim();
+                if (!trimmed) continue;
 
-            pageNum = 1;
-            currentPage = createNewPageElement(pageNum);
+                // 对齐块
+                const alignMatch = trimmed.match(/^__ALIGN_(LEFT|RIGHT|CENTER)__(.*)__ENDALIGN__$/);
+                if (alignMatch) {
+                    const align = alignMatch[1].toLowerCase();
+                    const text = alignMatch[2].replace(/¶¶¶/g, '\n');
+                    const escaped = escapeHtml(text).replace(/\n/g, '<br>');
+                    const html = `<div class="official-body align-${align}" style="text-align:${align};text-indent:0!important;">${escaped}</div>`;
+                    blocks.push({ type: 'align', subtype: align, html: html, text: text });
+                    continue;
+                }
+
+                // 密级
+                if (trimmed.startsWith('[密级]')) {
+                    let content = trimmed.substring(4);
+                    const html = `<div class="gw-miji">${content}</div>`;
+                    blocks.push({ type: 'miji', html: html, text: content });
+                    continue;
+                }
+
+                // 大标题
+                if (trimmed.startsWith('[大标题]')) {
+                    let content = trimmed.substring(5);
+                    docTitle = content;
+                    document.getElementById('download-filename').value = content;
+                    document.getElementById('download-filename-label').innerText = content;
+                    const html = `<div class="gw-title">${content}</div>`;
+                    blocks.push({ type: 'title', html: html, text: content });
+                    continue;
+                }
+
+                // 各级标题
+                if (trimmed.startsWith('# ')) {
+                    h1Count++; h2Count = 0; h3Count = 0; h4Count = 0;
+                    let text = trimmed.substring(2);
+                    let fullText = `${cnNums[h1Count]}、${text}`;
+                    const html = `<div class="gw-h1">${fullText}</div>`;
+                    blocks.push({ type: 'h1', html: html, text: fullText });
+                    continue;
+                }
+                if (trimmed.startsWith('## ')) {
+                    h2Count++; h3Count = 0; h4Count = 0;
+                    let text = trimmed.substring(3);
+                    let fullText = `（${cnNums[h2Count]}）${text}`;
+                    const html = `<div class="gw-h2">${fullText}</div>`;
+                    blocks.push({ type: 'h2', html: html, text: fullText });
+                    continue;
+                }
+                if (trimmed.startsWith('### ')) {
+                    h3Count++; h4Count = 0;
+                    let text = trimmed.substring(4);
+                    let fullText = `${h3Count}.${text}`;
+                    const html = `<div class="gw-h3">${fullText}</div>`;
+                    blocks.push({ type: 'h3', html: html, text: fullText });
+                    continue;
+                }
+                if (trimmed.startsWith('#### ')) {
+                    h4Count++;
+                    let text = trimmed.substring(5);
+                    let fullText = `（${h4Count}）${text}`;
+                    const html = `<div class="gw-h4">${fullText}</div>`;
+                    blocks.push({ type: 'h4', html: html, text: fullText });
+                    continue;
+                }
+
+                // 表格：用marked渲染（s 标志使 . 匹配换行符，支持多行表格）
+                if (/^\|[\s\S]*\|$/m.test(trimmed) && trimmed.split('|').length > 2) {
+                    try {
+                        const tableHtml = marked.parse(trimmed);
+                        blocks.push({ type: 'table', html: tableHtml, text: trimmed });
+                    } catch(e) {
+                        const escaped = escapeHtml(trimmed);
+                        const html = `<div class="official-body">${escaped}</div>`;
+                        blocks.push({ type: 'body', html: html, text: trimmed });
+                    }
+                    continue;
+                }
+
+                // 有序列表：数字. 内容
+                if (/^\d+\.\s/.test(trimmed)) {
+                    blocks.push({ type: 'list-item', ordered: true, text: trimmed });
+                    const html = `<div class="official-body" style="text-indent:0;padding-left:2em;">${trimmed}</div>`;
+                    blocks[blocks.length - 1].html = html;
+                    continue;
+                }
+
+                // 无序列表：- 内容
+                if (/^-\s/.test(trimmed)) {
+                    const liText = trimmed.replace(/^-(\s)/, '●$1');
+                    const html = `<div class="official-body" style="text-indent:0;padding-left:2em;">${liText}</div>`;
+                    blocks.push({ type: 'list-item', ordered: false, text: liText, html: html });
+                    continue;
+                }
+
+                // 正文
+                const escaped = escapeHtml(trimmed);
+                let formatted = escaped;
+                formatted = formatted.replace(/&lt;u&gt;(.*?)&lt;\/u&gt;/g, '<u>$1</u>');
+                formatted = formatted.replace(/&lt;br\s*\/?&gt;/g, '<br>');
+                formatted = formatted.replace(/\*\*(.*?)\*\*/g, '<b>$1</b>');
+                formatted = formatted.replace(/\*(.*?)\*/g, '<i>$1</i>');
+                formatted = formatted.replace(/~~(.*?)~~/g, '<s>$1</s>');
+                const html = `<div class="official-body">${formatted}</div>`;
+                blocks.push({ type: 'body', html: html, text: trimmed });
+            }
+
+            // 保存供DOCX导出
+            parsedDocumentData = blocks;
+
+            // ===== 分页布局 =====
+            let pageNum = 1;
+            let currentPage = createPage(pageNum);
             container.appendChild(currentPage);
-            currentContentArea = currentPage.querySelector('.page-content');
+            let contentArea = currentPage.querySelector('.page-content');
+            let currentLineCount = 0;
 
-            blocksHtml.forEach(htmlStr => {
-                let tempNode = document.createElement('div');
-                tempNode.innerHTML = htmlStr;
-                let elements = Array.from(tempNode.children);
-                
-                elements.forEach(element => {
-                    appendElementWithSplitting(element);
-                });
-            });
+            for (let b of blocks) {
+                let linesNeeded = measureLines(b.html);
+                if (b.type === 'title') linesNeeded = Math.max(2, linesNeeded);
+
+                if (currentLineCount + linesNeeded > LINES_PER_PAGE && currentLineCount > 0) {
+                    pageNum++;
+                    currentPage = createPage(pageNum);
+                    container.appendChild(currentPage);
+                    contentArea = currentPage.querySelector('.page-content');
+                    currentLineCount = 0;
+                }
+
+                const temp = document.createElement('div');
+                temp.innerHTML = b.html;
+                while (temp.firstChild) {
+                    contentArea.appendChild(temp.firstChild);
+                }
+                currentLineCount += linesNeeded;
+            }
 
             updateZoom();
         }
@@ -685,7 +757,6 @@
         const dropZone = document.getElementById('drop-zone');
         const fileInput = document.getElementById('file-input');
 
-        // 文件名输入框同步按钮标签
         document.getElementById('download-filename').addEventListener('input', function() {
             document.getElementById('download-filename-label').innerText = this.value.trim() || '标准公文排版';
         });
@@ -723,76 +794,91 @@
                 const d = window.docx || (typeof docx !== 'undefined' ? docx : null);
                 if (!d) { throw new Error("Docx 库未挂载成功，请检查依赖或刷新页面重试。"); }
 
-                let alignMap = {
-                    'left': d.AlignmentType.LEFT,
-                    'center': d.AlignmentType.CENTER,
-                    'right': d.AlignmentType.RIGHT,
-                    'justified': d.AlignmentType.JUSTIFIED
-                };
-
                 let docChildren = [];
-                parsedDocumentData.forEach(item => {
+                let pageNumCounter = 0;
+                let linesOnCurrentPage = 0;
+
+                function flushPageIfNeeded(linesNeeded) {
+                    if (linesOnCurrentPage + linesNeeded > LINES_PER_PAGE && linesOnCurrentPage > 0) {
+                        pageNumCounter++;
+                        linesOnCurrentPage = 0;
+                    }
+                    linesOnCurrentPage += linesNeeded;
+                }
+
+                for (let item of parsedDocumentData) {
+                    let lines = Math.max(1, Math.ceil((item.text || '').length / CHARS_PER_LINE));
+
                     if (item.type === 'miji') {
+                        flushPageIfNeeded(1);
                         docChildren.push(new d.Paragraph({
                             children: [new d.TextRun({ text: item.text, font: "黑体", size: 32, color: "000000" })],
                             alignment: d.AlignmentType.LEFT, spacing: { line: 560, lineRule: "exact" }
                         }));
                     }
                     else if (item.type === 'title') {
+                        flushPageIfNeeded(lines);
                         docChildren.push(new d.Paragraph({
                             children: [new d.TextRun({ text: item.text, font: "方正小标宋简体", size: 44, color: "000000" })],
                             alignment: d.AlignmentType.CENTER, spacing: { line: 700, lineRule: "exact", after: 400 }
                         }));
                     }
                     else if (['h1','h2','h3','h4'].includes(item.type)) {
+                        flushPageIfNeeded(lines);
                         let fontMap = { h1: "黑体", h2: "楷体_GB2312", h3: "仿宋_GB2312", h4: "仿宋_GB2312" };
                         let boldMap = { h1: false, h2: false, h3: true, h4: false };
                         let headingLevelMap = { h1: d.HeadingLevel.HEADING_1, h2: d.HeadingLevel.HEADING_2, h3: d.HeadingLevel.HEADING_3, h4: d.HeadingLevel.HEADING_4 };
-
                         docChildren.push(new d.Paragraph({
                             heading: headingLevelMap[item.type],
                             children: [new d.TextRun({ text: item.text, font: fontMap[item.type], bold: boldMap[item.type], size: 32, color: "000000" })],
                             indent: { firstLine: 640 }, spacing: { line: 560, lineRule: "exact" }
                         }));
                     }
-                    else if (item.type === 'list') {
-                        // 有序列表 / 无序列表
-                        item.items.forEach((liText, idx) => {
-                            let prefix = item.ordered ? `${idx + 1}. ` : '- ';
-                            let indentVal = item.ordered ? 960 : 640; // 有序列表缩进更大以容纳数字
-                            docChildren.push(new d.Paragraph({
-                                children: [new d.TextRun({ text: prefix + liText, font: "仿宋_GB2312", size: 32, color: "000000" })],
-                                indent: { firstLine: indentVal },
-                                spacing: { line: 560, lineRule: "exact" }
-                            }));
-                        });
+                    else if (item.type === 'list-item') {
+                        flushPageIfNeeded(lines);
+                        const plainText = item.text.replace(/<[^>]+>/g, '');
+                        docChildren.push(new d.Paragraph({
+                            children: [new d.TextRun({ text: plainText, font: "仿宋_GB2312", size: 32, color: "000000" })],
+                            indent: { left: 640 }, spacing: { line: 560, lineRule: "exact" }
+                        }));
                     }
-                    else if (item.type === 'paragraph') {
-                        let lines = item.raw.split(/<br\s*\/?>/i);
-                        lines.forEach((lineText, idx) => {
-                            let textClean = lineText.replace(/<\/?[^>]+(>|$)/g, "").trim();
-                            if (!textClean && idx === lines.length - 1 && lines.length > 1) return;
-
-                            let pAlign = alignMap[item.align] || d.AlignmentType.JUSTIFIED;
-                            let pIndent = { firstLine: 640 };
-                            
-                            if (item.align === 'right' || item.align === 'center' || item.align === 'left') {
-                                pIndent = undefined; // 非两端对齐时取消首行缩进
-                            }
-                            
+                    else if (item.type === 'align') {
+                        flushPageIfNeeded(lines);
+                        let alignMap = { left: d.AlignmentType.LEFT, center: d.AlignmentType.CENTER, right: d.AlignmentType.RIGHT };
+                        let pAlign = alignMap[item.subtype] || d.AlignmentType.LEFT;
+                        let alignLines = item.text.split('\n');
+                        alignLines.forEach((lineText, idx) => {
+                            if (!lineText.trim() && idx === alignLines.length - 1) return;
                             docChildren.push(new d.Paragraph({
-                                children: [new d.TextRun({ text: textClean, font: "仿宋_GB2312", size: 32, color: "000000" })],
-                                indent: pIndent,
+                                children: [new d.TextRun({ text: lineText, font: "仿宋_GB2312", size: 32, color: "000000" })],
                                 alignment: pAlign,
                                 spacing: { line: 560, lineRule: "exact" }
                             }));
                         });
                     }
+                    else if (item.type === 'body') {
+                        flushPageIfNeeded(lines);
+                        let text = item.text
+                            .replace(/<[^>]+>/g, '')
+                            .replace(/\*\*(.*?)\*\*/g, '$1')
+                            .replace(/\*(.*?)\*/g, '$1');
+                        docChildren.push(new d.Paragraph({
+                            children: [new d.TextRun({ text: text, font: "仿宋_GB2312", size: 32, color: "000000" })],
+                            indent: { firstLine: 640 }, spacing: { line: 560, lineRule: "exact" }
+                        }));
+                    }
                     else if (item.type === 'table') {
+                        flushPageIfNeeded(lines);
                         let parser = new DOMParser();
                         let docTable = parser.parseFromString(item.html, 'text/html').querySelector('table');
+                        if (!docTable) {
+                            docChildren.push(new d.Paragraph({
+                                children: [new d.TextRun({ text: item.text, font: "仿宋_GB2312", size: 32, color: "000000" })],
+                                indent: { firstLine: 640 }, spacing: { line: 560, lineRule: "exact" }
+                            }));
+                            continue;
+                        }
                         let docxRows = [];
-                        
                         let rows = docTable.querySelectorAll('tr');
                         rows.forEach(row => {
                             let docxCells = [];
@@ -800,7 +886,6 @@
                             cells.forEach(cell => {
                                 let cellText = cell.innerText.trim();
                                 let isHeader = cell.tagName === 'TH';
-                                
                                 docxCells.push(new d.TableCell({
                                     children: [new d.Paragraph({
                                         children: [new d.TextRun({ 
@@ -824,7 +909,6 @@
                                 docxRows.push(new d.TableRow({ children: docxCells }));
                             }
                         });
-                        
                         if (docxRows.length > 0) {
                             docChildren.push(new d.Table({
                                 rows: docxRows,
@@ -834,7 +918,7 @@
                             docChildren.push(new d.Paragraph({ spacing: { before: 120 } }));
                         }
                     }
-                });
+                }
 
                 const doc = new d.Document({
                     creator: "公文排版工具",
@@ -852,13 +936,21 @@
                             default: new d.Footer({
                                 children: [new d.Paragraph({
                                     alignment: d.AlignmentType.RIGHT, indent: { right: 280 },
-                                    children: [new d.TextRun({ text: "- ", font: "宋体", size: 28, color:"000000" }), d.PageNumber.CURRENT, new d.TextRun({ text: " -", font: "宋体", size: 28, color:"000000" })]
+                                    children: [
+                                        new d.TextRun({ text: "- ", font: "宋体", size: 28, color:"000000" }),
+                                        new d.TextRun({ children: [d.PageNumber.CURRENT], font: "宋体", size: 28, color:"000000" }),
+                                        new d.TextRun({ text: " -", font: "宋体", size: 28, color:"000000" })
+                                    ]
                                 })]
                             }),
                             even: new d.Footer({
                                 children: [new d.Paragraph({
                                     alignment: d.AlignmentType.LEFT, indent: { left: 280 },
-                                    children: [new d.TextRun({ text: "- ", font: "宋体", size: 28, color:"000000" }), d.PageNumber.CURRENT, new d.TextRun({ text: " -", font: "宋体", size: 28, color:"000000" })]
+                                    children: [
+                                        new d.TextRun({ text: "- ", font: "宋体", size: 28, color:"000000" }),
+                                        new d.TextRun({ children: [d.PageNumber.CURRENT], font: "宋体", size: 28, color:"000000" }),
+                                        new d.TextRun({ text: " -", font: "宋体", size: 28, color:"000000" })
+                                    ]
                                 })]
                             })
                         },
